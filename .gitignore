@@ -1,6 +1,11 @@
 # Prerequisites
 *.d
 
+debug
+release
+*.DS_Store
+old
+
 # Compiled Object files
 *.slo
 *.lo
