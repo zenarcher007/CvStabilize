@@ -13,12 +13,6 @@
 using namespace std;
 using namespace cv;
 
-void show_help(string progName) {
-  cerr << "Usage: " << progName << " <Video File> <Output Video File> [--copy-audio]\n\n";
-  cerr << "When picking a view and reference image portion, click to toggle dragging each corner of the rectangles to position them accordingly. The \"View Window\" rectangle corresponds to the cropped portion of the frame you want to see in the final output, offset from the \"Reference\" rectangle, which the algorithm searches for in each video frame. Try picking differernt reference images to obtain better results.\n";
-  cerr << "After picking a view and reference image portion, press Enter to begin stabilizing. While processing, you may click the screen to toggle faster updating of the video output (decreased performance).\n";
-  cerr << "--copy-audio: run the ffmpeg copy audio command when complete, rather than only displaying it. This must be specified after all positional parameters.\n";
-}
 
 void stabilize(VideoCapture& cap) {
   while(true) {
@@ -167,13 +161,40 @@ string getAfterLast(char* inStr, char item) {
   return string(&inStr[dotPos]);
 }
 
+
+void show_help(string progName) {
+  cerr << "Usage: " << progName << " <Video File> <Output Video File> [--copy-audio, --motion-limit <n>]\n\n";
+  cerr << "When picking a view and reference image portion, click to toggle dragging each corner of the rectangles to position them accordingly. The \"View Window\" rectangle corresponds to the cropped portion of the frame you want to see in the final output, offset from the \"Reference\" rectangle, which the algorithm searches for in each video frame. Try picking differernt reference images to obtain better results.\n";
+  cerr << "After picking a view and reference image portion, press Enter to begin stabilizing. While processing, you may click the screen to toggle faster updating of the video output (decreased performance).\n";
+  cerr << "--copy-audio: run the ffmpeg copy audio command when complete, rather than only displaying it. This must be specified after all positional parameters.\n";
+  cerr << "--motion-limit: prevent updating the frame if the euclidian distnace between the same point and the last frame is greater than n pixels. Helps to reduce frame blur and mispredicted frames.\n";
+}
+
+// Returns whether the given flag is specified after the input and output file arguments
+bool containsFlagArg(const char arg[], int argc, char** argv) {
+  for(int argi = 3; argi < argc; ++argi) {
+    if(strcmp(argv[argi], arg) == 0)
+      return true;
+  }
+  return false;
+}
+
+// Gets the value after a given flag, if specified. Else, returns NULL
+char* getFlagValue(const char arg[], int argc, char** argv) {
+  for(int argi = 3; argi < argc; ++argi)
+    if(strcmp(argv[argi], arg) == 0)
+      if(argi+1 < argc)
+        return argv[argi+1];
+  return NULL;
+}
+
+
 // First, use a very crude user interface to allow the user to select a reference (match) rectangle portion, and a view rectangle portion.
 int main(int argc, char** argv) {
-  if(argc > 4) {
+  if(argc <= 2) {
     show_help(argv[0]);
     exit(0);
   }
-
   cv::VideoCapture cap(argv[1]);
   unsigned long frameCount = cap.get(CAP_PROP_FRAME_COUNT);
   
@@ -203,7 +224,7 @@ int main(int argc, char** argv) {
       
       std::pair<RectFrameData*, int*> mouseCallbackData(&rectData, &pollTime);
       setMouseCallback("Video Output", rectPairDrag_callback, (void*) &mouseCallbackData);
-      createTrackbar("Frame", "Video Output", &seekPos, frameCount, slider_callback, &seekPos);
+      createTrackbar("Frame", "Video Output", nullptr, frameCount, slider_callback, &seekPos);
       Mat drawOnFrame;
       frame.copyTo(drawOnFrame);
 
@@ -237,7 +258,7 @@ int main(int argc, char** argv) {
     refImg = frame(rectData.matchRect);
   }
   cap.set(CAP_PROP_POS_FRAMES, 0); // Rewind to beginning
-  
+
   // --- Run stabilizer ---
   {
     const char* outfile = argv[2];
@@ -248,19 +269,36 @@ int main(int argc, char** argv) {
     int seekPos = 0;
     bool liveUpdate = false;
     time_t oldTime = time(NULL);
+    Mat newFrame = frame;
 
     // Get fourcc of input video and initialize for video output
     // https://answers.opencv.org/question/77558/get-fourcc-after-openning-a-video-file/
     int fourcc = cap.get(CAP_PROP_FOURCC);
-    VideoWriter outputWriter(outfile, cv::VideoWriter::fourcc(fourcc & 255, (fourcc >> 8) & 255, (fourcc >> 16) & 255, (fourcc >> 24) & 255), cap.get(CAP_PROP_FPS), Size(rectData.viewRect.width, rectData.viewRect.height)); // Source for obtaining fourcc data: Link above
+    double fps = cap.get(CAP_PROP_FPS);
+    cv::Size newSize = Size(rectData.viewRect.width, rectData.viewRect.height);
+    int origcc = cv::VideoWriter::fourcc(fourcc & 255, (fourcc >> 8) & 255, (fourcc >> 16) & 255, (fourcc >> 24) & 255);
+    VideoWriter outputWriter(outfile, origcc, fps, newSize, true); // Enable ffmpeg; Source for obtaining fourcc data: Link above
+    //int pixelFormat = cap.get(cv::CAP_PROP_CODEC_PIXEL_FORMAT);
+    outputWriter.set(cv::VIDEOWRITER_PROP_QUALITY, 100); // Preserve full original quality if possible
 
+
+
+    char* distArg = getFlagValue("--motion-limit", argc, argv);
+    int maxDistance = 0;
+    if(distArg != NULL)
+      maxDistance = stoi(distArg);
     while(true) {
-      stabilizer >> frame;
-      if(frame.empty()) break;
+      cv::Point oldMatchPos = stabilizer.getLastMatchPos();
+      stabilizer >> newFrame;
+      if(newFrame.empty()) break;
+      cv::Point newMatchPos = stabilizer.getLastMatchPos();
+      int dist = norm(newMatchPos - oldMatchPos);
+      if(distArg == NULL || frame.empty() || dist <= maxDistance)
+        frame = newFrame;
       time_t seconds = time(NULL);
       if(liveUpdate || seconds - oldTime >= 1) {
         oldTime = seconds;
-        createTrackbar("Frame", "Video Output", &seekPos, frameCount, nullptr, nullptr);
+        createTrackbar("Frame", "Video Output", nullptr, frameCount, nullptr, nullptr);
         setTrackbarPos("Frame", "Video Output", min(frameCount-1, (unsigned long) seekPos));
         setMouseCallback("Video Output", boolFlipMouseCallback, (void*) &liveUpdate);
         cv::imshow("Video Output", frame);
@@ -283,8 +321,8 @@ int main(int argc, char** argv) {
   string outLabel = outName.substr(0, outName.find_last_of('.'));
   string outFile = outParDir + outLabel + "_audio-copied" + getAfterLast(argv[2], '.'); // Add path, name, extra string, and file extension
   
-  string audioCmd = "ffmpeg -i \"" + string(argv[2]) + "\" -i \"" + string(argv[1]) + "\" -c:v:a copy -map 0:v:0 -map 1:a:0 \"" + outFile + "\"";
-  if(argc > 3 && strcmp(argv[3], "--copy-audio") == 0) {
+  string audioCmd = "ffmpeg -y -i \"" + string(argv[2]) + "\" -i \"" + string(argv[1]) + "\" -c copy -map 0:v -map 1:a \"" + outFile + "\"";
+  if(containsFlagArg("--copy-audio", argc, argv)) {
     cerr << "Copying audio to output...:\n\n";
     cerr << "Running: " << audioCmd << "\n\n";
     int ret = system(audioCmd.c_str());
