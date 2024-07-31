@@ -10,7 +10,7 @@ EXECUTABLE = stabilize
 
 # Header search paths
 SYSTEM_HEADERS = /usr/local/include
-HEADERS = -I/usr/local/include/opencv4 -I /opt/homebrew/Cellar/ffmpeg/5.1.2/include
+HEADERS = -I/usr/local/include/opencv4 -I /opt/homebrew/Cellar/ffmpeg/*/include
 
 # Options      # pkg-config --libs opencv4
 # -lopencv_calib3d -lopencv_imgproc -lopencv_contrib -lopencv_legacy -lopencv_core -lopencv_ml -lopencv_features2d -lopencv_objdetect -lopencv_flann -lopencv_video -lopencv_highgui

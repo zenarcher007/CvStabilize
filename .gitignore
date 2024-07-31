@@ -3,6 +3,7 @@
 
 debug
 release
+build
 *.DS_Store
 old
 
@@ -35,3 +36,6 @@ old
 *.exe
 *.out
 *.app
+
+# Build files and testing framework files
+tests.log

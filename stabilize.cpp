@@ -296,12 +296,23 @@ int main(int argc, char** argv) {
       if(distArg == NULL || frame.empty() || dist <= maxDistance)
         frame = newFrame;
       time_t seconds = time(NULL);
-      if(liveUpdate || seconds - oldTime >= 1) {
+      if(seconds - oldTime >= 1) {
         oldTime = seconds;
         createTrackbar("Frame", "Video Output", nullptr, frameCount, nullptr, nullptr);
         setTrackbarPos("Frame", "Video Output", min(frameCount-1, (unsigned long) seekPos));
-        setMouseCallback("Video Output", boolFlipMouseCallback, (void*) &liveUpdate);
-        cv::imshow("Video Output", frame);
+        setMouseCallback("Video Output", boolFlipMouseCallback);
+        cv::Mat img = stabilizer.getDebuggingFrame();
+        // Draw view box rectangle
+        cv::Scalar mRectColor = cv::Scalar(255, 0, 0);
+        cv::Scalar vRectColor = cv::Scalar(0, 0, 255);
+        //drawRect(img, rectData.matchRect, &mRectColor, -1, "Reference"); // Draw match rect
+        //drawRect(img, rectData.viewRect, &vRectColor, -1, "View Window"); // Draw view rect
+        cv::rectangle(img, stabilizer.getLastViewRect(), vRectColor, 2);
+        cv::rectangle(img, stabilizer.getLastRefRect(), mRectColor, 2);
+        
+        if(! img.empty()) {
+          cv::imshow("Video Output", img);
+        }
         cv::waitKey(1);
       }
       outputWriter.write(frame); // Write to output file
