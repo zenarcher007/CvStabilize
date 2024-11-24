@@ -39,3 +39,8 @@ old
 
 # Build files and testing framework files
 tests.log
+
+CMakeCache.txt
+cmake_install.cmake
+CMakeFiles
+build

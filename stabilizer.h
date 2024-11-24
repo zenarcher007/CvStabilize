@@ -6,6 +6,7 @@
 #include "AtomicPriorityQueue.h"
 #include <opencv2/core/ocl.hpp>
 #include "pointcloudtracker.h"
+#include <condition_variable>
 
 #include "calibrator.h"
 
@@ -118,7 +119,7 @@ class Stabilizer {
     if(! frame) {
       return cv::Mat();
     }
-    cv::Mat image = frame->image;
+    cv::Mat image = frame->image.clone();
 
     vector<cv::Point2f> const * newPoints = pct.getPoints();
     if(! newPoints) return image;

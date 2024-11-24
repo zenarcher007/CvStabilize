@@ -30,7 +30,9 @@ void stabilize(VideoCapture& cap) {
 //template <typename Integral>
 static void slider_callback(int pos, void* data) {
   int* sliderPos = (int*) data;
-  *sliderPos = pos;
+  if(sliderPos != nullptr) {
+    *sliderPos = pos;
+  }
 }
 
 // Uses the distance formula to calculate the distance between two points.
@@ -145,8 +147,10 @@ void drawRect(Mat* frame, cv::Rect& rect, cv::Scalar* color, int highlightPt = -
 }
 
 void boolFlipMouseCallback(int event, int x, int y, int flags, void* data) {
-  bool* b = (bool*) data;
-  *b = !*b;
+  if(data != nullptr) {
+    bool* b = (bool*) data;
+    *b = !*b;
+  }
 }
 
 // Returns the rest of a string after the last [item] char (arguments as C-strings)
@@ -212,6 +216,13 @@ int main(int argc, char** argv) {
     int frameIndex = 1;
     int pollTime = 250;
     cv::Mat refImg;
+    
+    namedWindow("Video Output", WINDOW_NORMAL);
+    setWindowProperty("Video Output", WND_PROP_AUTOSIZE, WINDOW_NORMAL);
+    setWindowProperty("Video Output", WND_PROP_ASPECT_RATIO, WINDOW_FREERATIO);
+ 
+    createTrackbar("Frame", "Video Output", nullptr, frameCount, slider_callback, &seekPos);
+    setTrackbarPos("Frame", "Video Output", seekPos);
     while(true) { // Keep displaying the same frame; display a new one if the seek slider is changed.
       if(frameIndex != seekPos) {
         //cout << "Update to " << seekPos << "\n";
@@ -224,7 +235,7 @@ int main(int argc, char** argv) {
       
       std::pair<RectFrameData*, int*> mouseCallbackData(&rectData, &pollTime);
       setMouseCallback("Video Output", rectPairDrag_callback, (void*) &mouseCallbackData);
-      createTrackbar("Frame", "Video Output", nullptr, frameCount, slider_callback, &seekPos);
+      //setTrackbarPos("Frame", "Video Output", seekPos);
       Mat drawOnFrame;
       frame.copyTo(drawOnFrame);
 
@@ -287,6 +298,8 @@ int main(int argc, char** argv) {
     int maxDistance = 0;
     if(distArg != NULL)
       maxDistance = stoi(distArg);
+   
+    //createTrackbar("Frame", "Video Output", nullptr, frameCount, nullptr, nullptr);
     while(true) {
       cv::Point oldMatchPos = stabilizer.getLastMatchPos();
       stabilizer >> newFrame;
@@ -295,10 +308,9 @@ int main(int argc, char** argv) {
       int dist = norm(newMatchPos - oldMatchPos);
       if(distArg == NULL || frame.empty() || dist <= maxDistance)
         frame = newFrame;
-      time_t seconds = time(NULL);
+      time_t seconds = time(NULL); 
       if(seconds - oldTime >= 1) {
         oldTime = seconds;
-        createTrackbar("Frame", "Video Output", nullptr, frameCount, nullptr, nullptr);
         setTrackbarPos("Frame", "Video Output", min(frameCount-1, (unsigned long) seekPos));
         setMouseCallback("Video Output", boolFlipMouseCallback);
         cv::Mat img = stabilizer.getDebuggingFrame();
