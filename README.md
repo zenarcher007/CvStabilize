@@ -2,6 +2,15 @@
 A simple, multithreaded video stabilizer using the OpenCV library in C++.  
 
   This program uses a multithreaded approach to stabilize a postprocessed video. It creates a number of threads, each of which uses mutual exclusion to grab video frames as needed. Each thread processes its frame independently, and reassembles it in its original order via an atomic implementation of a priority queue. The main thread continually waits until the next few frames are in order, and writes them out to a new video file on disk. This parallelization style achieves fast and efficient CPU-based video stabilization.
+
+ ### Compiling:
+```
+mkdir -p build
+cd build
+cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake --build .
+./release/CvStabilize
+```
   
  ### Usage:
   Video is stabilized using OpenCV's template matching feature. In the HighGui window, the resulting video will be cropped to the "View Window" rectangle, offset by the location of features matching the "Reference" image rectangle in the video. Move the slider to seek through the video, and click to toggle dragging the corners of the rectangles (as holding and dragging doesn't work well on HighGui). Then press enter to begin stabilizing. Experiment with different reference images to lock onto static features in the background (smaller and higher-contrast reference points typically work best).
